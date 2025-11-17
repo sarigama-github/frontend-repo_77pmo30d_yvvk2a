@@ -15,6 +15,8 @@ export default function VideoForm({ onCreated }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -38,6 +40,35 @@ export default function VideoForm({ onCreated }) {
       setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setUploadMsg('');
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${BACKEND}/api/upload-resume`, {
+        method: 'POST',
+        body: fd,
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || 'Failed to read resume. Please try a PDF or DOCX.');
+      }
+      const data = await res.json();
+      setForm((f) => ({ ...f, resume_text: data.text || '' }));
+      setUploadMsg(`Imported ${file.name}${data.truncated ? ' (truncated)' : ''}`);
+    } catch (err) {
+      setError(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+      // reset input value so same file can be chosen again if needed
+      e.target.value = '';
     }
   }
 
@@ -72,10 +103,24 @@ export default function VideoForm({ onCreated }) {
             <label className="block text-sm font-medium text-slate-700">Brand colors</label>
             <input name="colors" value={form.colors} onChange={handleChange} className="mt-1 w-full rounded-md border-slate-300 focus:ring-indigo-500 focus:border-indigo-500" placeholder="indigo, purple, orange" />
           </div>
+
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-slate-700">Resume highlights</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-700">Resume highlights</label>
+              <span className="text-xs text-slate-500">Or upload PDF, DOC, DOCX</span>
+            </div>
             <textarea rows={4} name="resume_text" value={form.resume_text} onChange={handleChange} className="mt-1 w-full rounded-md border-slate-300 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Top achievements, skills, and metrics" />
+            <div className="mt-3 flex items-center gap-3">
+              <label className="inline-flex items-center px-3 py-2 rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 cursor-pointer">
+                <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={handleFileUpload} />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-4.5-4.5v-6a4.5 4.5 0 014.5-4.5h10.5a4.5 4.5 0 014.5 4.5v6a4.5 4.5 0 01-4.5 4.5H6.75z"/></svg>
+                {uploading ? 'Importing…' : 'Upload resume'}
+              </label>
+              {uploadMsg && <span className="text-xs text-green-600">{uploadMsg}</span>}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">We extract text only. Large files are truncated for faster processing.</p>
           </div>
+
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-slate-700">Plan</label>
             <select name="plan" value={form.plan} onChange={handleChange} className="mt-1 w-full rounded-md border-slate-300 focus:ring-indigo-500 focus:border-indigo-500">
