@@ -50,11 +50,26 @@ export default function VideoForm({ onCreated }) {
     setUploadMsg('');
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch(`${BACKEND}/api/upload-resume`, {
+      // Basic validations
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      const allowed = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.pdf', '.doc', '.docx'
+      ];
+      const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+      if (file.size > maxSize) throw new Error('File is too large (max 10MB).');
+      if (!allowed.includes(file.type) && !allowed.includes(ext)) {
+        throw new Error('Unsupported file type. Please upload PDF or DOCX.');
+      }
+
+      // Send RAW bytes to match backend expectations (no multipart)
+      const buf = await file.arrayBuffer();
+      const res = await fetch(`${BACKEND}/api/upload-resume?filename=${encodeURIComponent(file.name)}`, {
         method: 'POST',
-        body: fd,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: buf,
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
